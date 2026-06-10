@@ -139,23 +139,8 @@ def compute_fci_window(window_data: pd.DataFrame) -> dict:
 def compute_fci_rolling(
         data: pd.DataFrame,
         window: int = 252,
-        weights: dict = None) -> pd.DataFrame:
-    """
-    Calcule le FCI rolling sur toute la période
-
-    Parameters
-    ----------
-    data    : pd.DataFrame — données complètes
-    window  : int — fenêtre glissante (défaut 252)
-    weights : dict — poids des composantes
-              (défaut IS=0.30, VECM=0.25,
-               Granger=0.15, VIX=0.30)
-
-    Returns
-    -------
-    pd.DataFrame avec colonnes :
-        IS, VECM, Granger, VIX, FCI
-    """
+        weights: dict = None,
+        progress_callback=None) -> pd.DataFrame:
 
     if weights is None:
         weights = {
@@ -165,15 +150,16 @@ def compute_fci_rolling(
             'VIX'     : 0.30,
         }
 
-    results = []
+    results  = []
+    n_windows = len(data) - window
 
-    for i in range(window, len(data)):
+    for idx, i in enumerate(
+            range(window, len(data))):
+
         w_data = data.iloc[i-window:i].copy()
         date   = data.index[i]
-
         result = compute_fci_window(w_data)
 
-        # Recalcul FCI avec poids personnalisés
         result['FCI'] = (
             result['IS']      * weights['IS'] +
             result['VECM']    * weights['VECM'] +
@@ -182,6 +168,11 @@ def compute_fci_rolling(
 
         result['date'] = date
         results.append(result)
+
+        # Progress callback
+        if progress_callback is not None:
+            progress_callback(
+                (idx + 1) / n_windows)
 
     df = pd.DataFrame(results).set_index('date')
     return df
