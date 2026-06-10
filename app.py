@@ -576,16 +576,72 @@ with st.spinner('Chargement des données...'):
     stats = get_summary_stats(data)
 
 # ── CALCUL FCI ───────────────────────────────────────
-with st.spinner('Calcul du FCI rolling... '
-                '(2-3 minutes)'):
-    df_fci = get_fci(
+# ── CALCUL FCI ───────────────────────────────────────
+@st.cache_data(ttl=86400,
+               show_spinner=False)
+def get_fci_cached(
+        start: str, end: str,
+        window: int,
+        w_is: float, w_vecm: float,
+        w_granger: float,
+        w_vix: float) -> pd.DataFrame:
+    """Version cachée — calcul une seule fois"""
+    data = get_data(start, end)
+    weights = {
+        'IS'      : w_is,
+        'VECM'    : w_vecm,
+        'Granger' : w_granger,
+        'VIX'     : w_vix,
+    }
+    return compute_fci_rolling(
+        data, window=window,
+        weights=weights)
+
+# Vérifier si déjà en cache
+cache_key = (start_date, end_date, window,
+             w_is_n, w_vecm_n,
+             w_granger_n, w_vix_n)
+
+progress_placeholder = st.empty()
+
+with progress_placeholder.container():
+    st.markdown("""
+    <div style='text-align:center;
+                padding:40px;
+                background:#161b22;
+                border-radius:12px;
+                border:1px solid #30363d;'>
+        <div style='font-size:2rem;'>⚙️</div>
+        <div style='font-size:1rem;
+                    color:#8b949e;
+                    margin:12px 0;'>
+            Calcul du FCI en cours...
+        </div>
+        <div style='font-size:0.85rem;
+                    color:#6e7681;'>
+            Première exécution : 2-3 minutes<br>
+            Les prochaines seront instantanées
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    progress_bar = st.progress(0)
+    status_text  = st.empty()
+
+    def update_progress(pct: float):
+        progress_bar.progress(pct)
+        status_text.markdown(
+            f"<div style='text-align:center;"
+            f"color:#8b949e; font-size:0.85rem;'>"
+            f"{pct*100:.0f}% complété</div>",
+            unsafe_allow_html=True)
+
+    df_fci = get_fci_cached(
         start_date, end_date, window,
         w_is_n, w_vecm_n,
         w_granger_n, w_vix_n)
 
-fci_series  = df_fci['FCI']
-last_fci    = float(fci_series.iloc[-1])
-last_interp = interpret_fci(last_fci)
+progress_placeholder.empty()
 
 # ── HEADER ───────────────────────────────────────────
 st.markdown(f"""
